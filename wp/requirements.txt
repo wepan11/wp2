@@ -1,0 +1,23 @@
+# 核心依赖
+Flask==3.0.0
+flask-cors==4.0.0
+requests==2.31.0
+python-dotenv==1.0.0
+
+# API文档和限流
+flasgger==0.9.7.1
+Flask-Limiter==3.5.0
+
+# 生产环境部署
+gunicorn==21.2.0  # Linux生产环境
+waitress==3.0.0   # Windows生产环境
+
+# 数据库驱动（可选）
+# pymysql==1.1.0  # MySQL支持
+# psycopg2-binary==2.9.9  # PostgreSQL支持
+
+# 开发和测试（可选）
+# pytest==7.4.3
+# pytest-cov==4.1.0
+# black==23.12.0
+# flake8==6.1.0

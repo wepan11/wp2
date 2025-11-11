@@ -1,0 +1,26 @@
+[Unit]
+Description=BaiduPan Automation Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/baidu-pan-server
+Environment="PATH=/opt/baidu-pan-server/venv/bin"
+EnvironmentFile=/opt/baidu-pan-server/.env
+ExecStart=/opt/baidu-pan-server/venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 server:app
+Restart=always
+RestartSec=10
+
+# 安全配置
+NoNewPrivileges=true
+PrivateTmp=true
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=baidu-pan-server
+
+[Install]
+WantedBy=multi-user.target
