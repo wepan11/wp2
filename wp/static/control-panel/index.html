@@ -146,10 +146,130 @@
                 <section id="queueView" class="tab-view" style="display: none;">
                     <div class="view-header">
                         <h2>任务队列</h2>
+                        <div class="view-actions">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="autoRefreshToggle" checked />
+                                <span>自动刷新</span>
+                            </label>
+                            <button id="refreshQueuesBtn" class="btn btn-secondary btn-sm">
+                                <span class="icon">🔄</span> 刷新
+                            </button>
+                        </div>
                     </div>
-                    <div class="placeholder-content">
-                        <p class="empty-icon">🚧</p>
-                        <p>任务队列功能即将推出</p>
+
+                    <div id="queueLoadingState" class="state-message loading">
+                        <div class="spinner"></div>
+                        <p>加载队列数据...</p>
+                    </div>
+
+                    <div id="queueErrorState" class="state-message error" style="display: none;">
+                        <p class="error-icon">⚠️</p>
+                        <p id="queueErrorMessage">加载失败</p>
+                        <button id="retryQueueBtn" class="btn btn-secondary">重试</button>
+                    </div>
+
+                    <div id="queueContent" class="queue-content" style="display: none;">
+                        <div class="queue-grid">
+                            <div class="queue-section">
+                                <div class="queue-section-header">
+                                    <h3>📥 转存队列</h3>
+                                    <span id="transferLastUpdate" class="last-update"></span>
+                                </div>
+
+                                <div id="transferSummary" class="summary-cards">
+                                    <div class="summary-card">
+                                        <div class="summary-label">待处理</div>
+                                        <div class="summary-value" id="transferPending">0</div>
+                                    </div>
+                                    <div class="summary-card">
+                                        <div class="summary-label">进行中</div>
+                                        <div class="summary-value" id="transferRunning">0</div>
+                                    </div>
+                                    <div class="summary-card success">
+                                        <div class="summary-label">已完成</div>
+                                        <div class="summary-value" id="transferCompleted">0</div>
+                                    </div>
+                                    <div class="summary-card error">
+                                        <div class="summary-label">失败</div>
+                                        <div class="summary-value" id="transferFailed">0</div>
+                                    </div>
+                                </div>
+
+                                <div class="queue-controls">
+                                    <button id="startTransferBtn" class="btn btn-sm btn-success">▶️ 开始</button>
+                                    <button id="pauseTransferBtn" class="btn btn-sm btn-secondary">⏸️ 暂停</button>
+                                    <button id="resumeTransferBtn" class="btn btn-sm btn-primary">▶️ 继续</button>
+                                    <button id="stopTransferBtn" class="btn btn-sm btn-danger">⏹️ 停止</button>
+                                    <button id="clearTransferBtn" class="btn btn-sm btn-secondary">🗑️ 清空</button>
+                                    <button id="exportTransferBtn" class="btn btn-sm btn-secondary">📤 导出</button>
+                                </div>
+
+                                <div id="transferQueueTable" class="queue-table-container">
+                                    <table class="queue-table">
+                                        <thead>
+                                            <tr>
+                                                <th>状态</th>
+                                                <th>链接</th>
+                                                <th>目标路径</th>
+                                                <th>时间</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="transferQueueBody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="queue-section">
+                                <div class="queue-section-header">
+                                    <h3>📤 分享队列</h3>
+                                    <span id="shareLastUpdate" class="last-update"></span>
+                                </div>
+
+                                <div id="shareSummary" class="summary-cards">
+                                    <div class="summary-card">
+                                        <div class="summary-label">待处理</div>
+                                        <div class="summary-value" id="sharePending">0</div>
+                                    </div>
+                                    <div class="summary-card">
+                                        <div class="summary-label">进行中</div>
+                                        <div class="summary-value" id="shareRunning">0</div>
+                                    </div>
+                                    <div class="summary-card success">
+                                        <div class="summary-label">已完成</div>
+                                        <div class="summary-value" id="shareCompleted">0</div>
+                                    </div>
+                                    <div class="summary-card error">
+                                        <div class="summary-label">失败</div>
+                                        <div class="summary-value" id="shareFailed">0</div>
+                                    </div>
+                                </div>
+
+                                <div class="queue-controls">
+                                    <button id="startShareBtn" class="btn btn-sm btn-success">▶️ 开始</button>
+                                    <button id="pauseShareBtn" class="btn btn-sm btn-secondary">⏸️ 暂停</button>
+                                    <button id="resumeShareBtn" class="btn btn-sm btn-primary">▶️ 继续</button>
+                                    <button id="stopShareBtn" class="btn btn-sm btn-danger">⏹️ 停止</button>
+                                    <button id="clearShareBtn" class="btn btn-sm btn-secondary">🗑️ 清空</button>
+                                    <button id="exportShareBtn" class="btn btn-sm btn-secondary">📤 导出</button>
+                                </div>
+
+                                <div id="shareQueueTable" class="queue-table-container">
+                                    <table class="queue-table">
+                                        <thead>
+                                            <tr>
+                                                <th>状态</th>
+                                                <th>文件</th>
+                                                <th>分享链接</th>
+                                                <th>时间</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="shareQueueBody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -170,5 +290,6 @@
 
     <script src="js/main.js"></script>
     <script src="js/browse.js"></script>
+    <script src="js/queue.js"></script>
 </body>
 </html>

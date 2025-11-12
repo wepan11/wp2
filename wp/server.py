@@ -1130,6 +1130,110 @@ def list_accounts():
 
 
 # ============================================================================
+# 控制面板接口
+# ============================================================================
+
+@app.route('/api/control/queues', methods=['GET'])
+@require_auth
+def get_aggregated_queues():
+    """
+    获取所有账户的聚合队列数据
+    ---
+    tags:
+      - 系统
+    security:
+      - ApiKeyAuth: []
+    responses:
+      200:
+        description: 聚合的队列状态和任务数据
+        schema:
+          properties:
+            success:
+              type: boolean
+            data:
+              type: object
+              properties:
+                timestamp:
+                  type: string
+                  description: 数据生成时间
+                accounts:
+                  type: object
+                  description: 按账户分组的队列数据
+      401:
+        description: 未授权
+    """
+    try:
+        result = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'accounts': {}
+        }
+        
+        # 遍历所有账户，收集队列数据
+        for account_name in accounts.keys():
+            service = get_or_create_service(account_name)
+            
+            # 如果服务不可用，记录错误但继续处理其他账户
+            if not service:
+                result['accounts'][account_name] = {
+                    'available': False,
+                    'error': 'Service unavailable or login failed'
+                }
+                continue
+            
+            # 获取转存状态和队列
+            transfer_status = service.get_transfer_status()
+            transfer_queue = service.get_transfer_queue()
+            
+            # 获取分享状态和队列
+            share_status = service.get_share_status()
+            share_queue = service.get_share_queue()
+            
+            # 构建归一化的账户数据
+            result['accounts'][account_name] = {
+                'available': True,
+                'transfer': {
+                    'status': {
+                        'total': transfer_status.get('total', 0),
+                        'pending': transfer_status.get('pending', 0),
+                        'running': transfer_status.get('running', 0),
+                        'completed': transfer_status.get('completed', 0),
+                        'failed': transfer_status.get('failed', 0),
+                        'skipped': transfer_status.get('skipped', 0),
+                        'is_running': transfer_status.get('is_running', False),
+                        'is_paused': transfer_status.get('is_paused', False)
+                    },
+                    'queue': transfer_queue
+                },
+                'share': {
+                    'status': {
+                        'total': share_status.get('total', 0),
+                        'pending': share_status.get('pending', 0),
+                        'running': share_status.get('running', 0),
+                        'completed': share_status.get('completed', 0),
+                        'failed': share_status.get('failed', 0),
+                        'skipped': share_status.get('skipped', 0),
+                        'is_running': share_status.get('is_running', False),
+                        'is_paused': share_status.get('is_paused', False)
+                    },
+                    'queue': share_queue
+                }
+            }
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取聚合队列数据失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': '获取队列数据失败'
+        }), 500
+
+
+# ============================================================================
 # 爬虫接口
 # ============================================================================
 

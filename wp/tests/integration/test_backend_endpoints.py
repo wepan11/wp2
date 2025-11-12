@@ -297,3 +297,94 @@ class TestErrorPropagation:
         data = response.get_json()
         assert data['success'] is True
         assert data['data'] == []
+
+
+class TestControlQueues:
+    """Test aggregated queue endpoint for control panel."""
+    
+    def test_control_queues_requires_auth(self, client):
+        """Control queues endpoint should require API key."""
+        response = client.get('/api/control/queues')
+        assert response.status_code == 401
+        data = response.get_json()
+        assert data['success'] is False
+    
+    def test_control_queues_happy_path(self, client, auth_headers):
+        """Control queues should return aggregated data for all accounts."""
+        response = client.get('/api/control/queues', headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        
+        # Check response structure
+        assert 'data' in data
+        assert 'timestamp' in data['data']
+        assert 'accounts' in data['data']
+        
+        # Check accounts data
+        accounts = data['data']['accounts']
+        assert isinstance(accounts, dict)
+        
+        # Should have at least one account from fake_accounts fixture
+        assert len(accounts) > 0
+        
+        # Check account structure
+        for account_name, account_data in accounts.items():
+            assert 'available' in account_data
+            
+            if account_data['available']:
+                # Check transfer data
+                assert 'transfer' in account_data
+                assert 'status' in account_data['transfer']
+                assert 'queue' in account_data['transfer']
+                
+                transfer_status = account_data['transfer']['status']
+                assert 'total' in transfer_status
+                assert 'pending' in transfer_status
+                assert 'running' in transfer_status
+                assert 'completed' in transfer_status
+                assert 'failed' in transfer_status
+                assert 'is_running' in transfer_status
+                assert 'is_paused' in transfer_status
+                
+                # Check share data
+                assert 'share' in account_data
+                assert 'status' in account_data['share']
+                assert 'queue' in account_data['share']
+                
+                share_status = account_data['share']['status']
+                assert 'total' in share_status
+                assert 'pending' in share_status
+                assert 'running' in share_status
+                assert 'completed' in share_status
+                assert 'failed' in share_status
+                assert 'is_running' in share_status
+                assert 'is_paused' in share_status
+    
+    def test_control_queues_handles_unavailable_service(self, client, auth_headers, monkeypatch, fake_accounts):
+        """Control queues should gracefully handle unavailable services."""
+        # Monkeypatch to return None for one account
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        import server as server_module
+        
+        original_get_or_create_service = server_module.get_or_create_service
+        
+        def mock_get_or_create_service(account=None):
+            if account == 'test_account':
+                return None  # Simulate unavailable service
+            return original_get_or_create_service(account)
+        
+        monkeypatch.setattr(server_module, 'get_or_create_service', mock_get_or_create_service)
+        
+        response = client.get('/api/control/queues', headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        
+        # Check that unavailable account is marked as such
+        accounts = data['data']['accounts']
+        if 'test_account' in accounts:
+            assert accounts['test_account']['available'] is False
+            assert 'error' in accounts['test_account']
