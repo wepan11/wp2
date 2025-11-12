@@ -22,11 +22,15 @@
     const saveBtn = document.getElementById('saveSettingsBtn');
 
     // Initialize when settings tab is activated
-    EventBus.subscribe('tabChanged', (tabName) => {
-        if (tabName === 'settings') {
-            loadSettings();
+    function initSettingsModule() {
+        if (window.controlPanel) {
+            window.controlPanel.eventBus.on('tabChanged', (tabName) => {
+                if (tabName === 'settings') {
+                    loadSettings();
+                }
+            });
         }
-    });
+    }
 
     /**
      * Load settings from backend
@@ -38,7 +42,7 @@
         showLoading();
 
         try {
-            const apiKey = localStorage.getItem('apiKey');
+            const apiKey = window.controlPanel ? window.controlPanel.getApiKey() : localStorage.getItem('control_panel_api_key');
             if (!apiKey) {
                 showToast('请先配置API密钥', 'error');
                 return;
@@ -197,7 +201,7 @@
             saveBtn.disabled = true;
             saveBtn.textContent = '保存中...';
 
-            const apiKey = localStorage.getItem('apiKey');
+            const apiKey = window.controlPanel ? window.controlPanel.getApiKey() : localStorage.getItem('control_panel_api_key');
             const response = await fetch('/api/control/settings', {
                 method: 'PUT',
                 headers: {
@@ -217,10 +221,12 @@
             showToast('✅ 设置已保存并应用到运行中的服务', 'success');
 
             // Broadcast UI preference changes
-            EventBus.publish('settingsUpdated', {
-                autoRefreshInterval: formData.ui.auto_refresh_interval,
-                apiKeyRetention: formData.ui.api_key_retention
-            });
+            if (window.controlPanel) {
+                window.controlPanel.eventBus.emit('settingsUpdated', {
+                    autoRefreshInterval: formData.ui.auto_refresh_interval,
+                    apiKeyRetention: formData.ui.api_key_retention
+                });
+            }
 
         } catch (error) {
             console.error('Failed to save settings:', error);
@@ -262,7 +268,16 @@
     }
 
     // Event listeners
-    saveBtn.addEventListener('click', saveSettings);
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveSettings);
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSettingsModule);
+    } else {
+        initSettingsModule();
+    }
 
     // Export for testing
     window.SettingsModule = {

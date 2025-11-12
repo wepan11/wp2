@@ -3,7 +3,6 @@ class QueueManager {
         this.controlPanel = controlPanel;
         this.autoRefreshEnabled = true;
         this.refreshInterval = null;
-        this.refreshIntervalMs = 5000;
         this.currentAccount = null;
         this.queueData = null;
         
@@ -13,6 +12,10 @@ class QueueManager {
     init() {
         this.setupEventListeners();
         this.subscribeToEvents();
+    }
+
+    getRefreshInterval() {
+        return this.controlPanel.getAutoRefreshInterval();
     }
 
     setupEventListeners() {
@@ -82,6 +85,12 @@ class QueueManager {
                 this.refreshQueues();
             }
         });
+
+        this.controlPanel.eventBus.on('settingsUpdated', (settings) => {
+            if (settings.autoRefreshInterval && this.autoRefreshEnabled && this.isQueueTabActive()) {
+                this.startAutoRefresh();
+            }
+        });
     }
 
     isQueueTabActive() {
@@ -99,11 +108,12 @@ class QueueManager {
 
     startAutoRefresh() {
         this.stopAutoRefresh();
+        const interval = this.getRefreshInterval();
         this.refreshInterval = setInterval(() => {
             if (this.isQueueTabActive()) {
                 this.refreshQueues();
             }
-        }, this.refreshIntervalMs);
+        }, interval);
     }
 
     stopAutoRefresh() {

@@ -86,10 +86,35 @@
                         </select>
                     </div>
                 </div>
+
+                <div class="dashboard-summary" id="dashboardSummary" style="display: none;">
+                    <h3>系统概览</h3>
+                    <div class="summary-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">转存待处理</span>
+                            <span class="stat-value" id="dashTransferPending">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">转存运行中</span>
+                            <span class="stat-value" id="dashTransferRunning">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">分享待处理</span>
+                            <span class="stat-value" id="dashSharePending">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">分享运行中</span>
+                            <span class="stat-value" id="dashShareRunning">0</span>
+                        </div>
+                    </div>
+                    <button id="refreshDashboardBtn" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 0.5rem;">
+                        🔄 刷新
+                    </button>
+                </div>
             </nav>
 
             <section class="content-area">
-                <section id="browseView" class="tab-view active">
+                <section id="browseView" class="tab-view active" style="display: flex;">
                     <div class="view-header">
                         <h2>浏览文件</h2>
                         <div class="view-actions">

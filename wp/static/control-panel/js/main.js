@@ -7,6 +7,9 @@ class ControlPanel {
         this.selectedAccount = localStorage.getItem(SELECTED_ACCOUNT_STORAGE) || '';
         this.accounts = [];
         this.eventBus = new EventBus();
+        this.currentTab = 'browse';
+        this.dashboardRefreshTimer = null;
+        this.autoRefreshInterval = 5000;
         this.init();
     }
 
@@ -15,6 +18,7 @@ class ControlPanel {
         if (this.apiKey) {
             this.showMainContent();
             this.loadAccounts();
+            this.loadDashboard();
         }
     }
 
@@ -38,6 +42,17 @@ class ControlPanel {
             localStorage.setItem(SELECTED_ACCOUNT_STORAGE, this.selectedAccount);
             this.eventBus.emit('accountChanged', this.selectedAccount);
             this.updateAccountInfo();
+        });
+
+        const refreshDashboardBtn = document.getElementById('refreshDashboardBtn');
+        if (refreshDashboardBtn) {
+            refreshDashboardBtn.addEventListener('click', () => this.loadDashboard());
+        }
+
+        this.eventBus.on('settingsUpdated', (settings) => {
+            if (settings.autoRefreshInterval) {
+                this.autoRefreshInterval = settings.autoRefreshInterval;
+            }
         });
     }
 
@@ -133,14 +148,19 @@ class ControlPanel {
     }
 
     switchTab(tabName) {
+        if (this.currentTab === tabName) return;
+
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.toggle('active', item.getAttribute('data-tab') === tabName);
         });
 
         document.querySelectorAll('.tab-view').forEach(view => {
-            view.classList.toggle('active', view.id === `${tabName}View`);
+            const isActive = view.id === `${tabName}View`;
+            view.classList.toggle('active', isActive);
+            view.style.display = isActive ? 'flex' : 'none';
         });
 
+        this.currentTab = tabName;
         this.eventBus.emit('tabChanged', tabName);
     }
 
@@ -167,6 +187,31 @@ class ControlPanel {
 
     getSelectedAccount() {
         return this.selectedAccount;
+    }
+
+    async loadDashboard() {
+        try {
+            const response = await this.fetchAPI('/api/control/overview');
+            if (response.success && response.data) {
+                this.renderDashboard(response.data.queues_summary);
+                document.getElementById('dashboardSummary').style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Failed to load dashboard:', error);
+        }
+    }
+
+    renderDashboard(summary) {
+        if (!summary) return;
+        
+        document.getElementById('dashTransferPending').textContent = summary.total_transfer_pending || 0;
+        document.getElementById('dashTransferRunning').textContent = summary.total_transfer_running || 0;
+        document.getElementById('dashSharePending').textContent = summary.total_share_pending || 0;
+        document.getElementById('dashShareRunning').textContent = summary.total_share_running || 0;
+    }
+
+    getAutoRefreshInterval() {
+        return this.autoRefreshInterval;
     }
 
     showToast(message, type = 'info') {

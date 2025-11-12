@@ -1135,6 +1135,101 @@ def list_accounts():
 # 控制面板接口
 # ============================================================================
 
+@app.route('/api/control/overview', methods=['GET'])
+@require_auth
+def get_control_panel_overview():
+    """
+    获取控制面板概览数据（健康状态、账户列表、队列摘要）
+    ---
+    tags:
+      - 系统
+    security:
+      - ApiKeyAuth: []
+    responses:
+      200:
+        description: 控制面板概览数据
+        schema:
+          properties:
+            success:
+              type: boolean
+            data:
+              type: object
+              properties:
+                health:
+                  type: object
+                  description: 服务健康状态
+                accounts:
+                  type: array
+                  description: 可用账户列表
+                queues_summary:
+                  type: object
+                  description: 队列汇总统计
+      401:
+        description: 未授权
+    """
+    try:
+        # 获取健康状态
+        health_status = {
+            'status': 'ok',
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'services': {
+                'core': len(services) > 0,
+                'crawler': crawler_service is not None,
+                'link_extractor': link_extractor_service is not None
+            }
+        }
+        
+        # 获取账户列表
+        account_list = list(accounts.keys())
+        
+        # 获取队列摘要
+        queues_summary = {
+            'total_accounts': len(account_list),
+            'total_transfer_pending': 0,
+            'total_transfer_running': 0,
+            'total_transfer_completed': 0,
+            'total_transfer_failed': 0,
+            'total_share_pending': 0,
+            'total_share_running': 0,
+            'total_share_completed': 0,
+            'total_share_failed': 0
+        }
+        
+        # 汇总所有账户的队列统计
+        for account_name in account_list:
+            service = get_or_create_service(account_name)
+            if service:
+                transfer_status = service.get_transfer_status()
+                share_status = service.get_share_status()
+                
+                queues_summary['total_transfer_pending'] += transfer_status.get('pending', 0)
+                queues_summary['total_transfer_running'] += transfer_status.get('running', 0)
+                queues_summary['total_transfer_completed'] += transfer_status.get('completed', 0)
+                queues_summary['total_transfer_failed'] += transfer_status.get('failed', 0)
+                
+                queues_summary['total_share_pending'] += share_status.get('pending', 0)
+                queues_summary['total_share_running'] += share_status.get('running', 0)
+                queues_summary['total_share_completed'] += share_status.get('completed', 0)
+                queues_summary['total_share_failed'] += share_status.get('failed', 0)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'health': health_status,
+                'accounts': account_list,
+                'queues_summary': queues_summary
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"获取控制面板概览失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': '获取概览数据失败'
+        }), 500
+
+
 @app.route('/api/control/queues', methods=['GET'])
 @require_auth
 def get_aggregated_queues():
@@ -1885,6 +1980,43 @@ def process_links():
             'error': str(e),
             'message': '处理链接失败'
         }), 500
+
+
+# ============================================================================
+# 控制面板UI静态文件服务
+# ============================================================================
+
+@app.route('/control')
+@app.route('/control/')
+def serve_control_panel_index():
+    """
+    提供控制面板UI主页
+    """
+    static_dir = os.path.join(os.path.dirname(__file__), 'static', 'control-panel')
+    if os.path.exists(static_dir):
+        return send_from_directory(static_dir, 'index.html')
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Control panel UI not found',
+            'message': '控制面板UI尚未部署'
+        }), 404
+
+
+@app.route('/control/<path:path>')
+def serve_control_panel_assets(path):
+    """
+    提供控制面板UI静态资源
+    """
+    static_dir = os.path.join(os.path.dirname(__file__), 'static', 'control-panel')
+    if os.path.exists(static_dir):
+        return send_from_directory(static_dir, path)
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Control panel UI not found',
+            'message': '控制面板UI尚未部署'
+        }), 404
 
 
 # ============================================================================
