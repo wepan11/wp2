@@ -11,7 +11,8 @@
 - ✅ **批量操作**：批量转存分享链接，批量生成分享链接
 - ✅ **爬虫集成**：自动爬取网站文章和提取网盘链接
 - ✅ **知识库管理**：统一管理文章和网盘链接，支持搜索、过滤、导出
-- ✅ **Web界面**：提供知识库管理Web UI
+- ✅ **Web界面**：提供知识库管理Web UI和控制面板
+- ✅ **控制面板**：实时队列监控、文件浏览、运行时配置
 - ✅ **速率限制**：内置API速率限制，防止滥用
 - ✅ **智能节流**：自动控制请求频率，避免触发百度限制
 - ✅ **Docker支持**：提供完整的Docker部署方案
@@ -86,15 +87,24 @@ chmod +x start.sh
 - 健康检查：http://localhost:5000/api/health
 - API文档：http://localhost:5000/docs
 - 知识库UI：http://localhost:5000/kb
+- 控制面板：http://localhost:5000/control
 
 #### 7. 运行测试
 
 ```bash
-# 运行所有测试
-python -m unittest discover tests -v
+# 运行单元测试 (Pytest)
+./run_unit_tests.sh
+# 或
+pytest tests/unit/ -v
 
-# 只运行知识库模块测试
+# 运行集成测试 (Pytest)
+pytest tests/integration/ -v
+
+# 运行知识库测试 (Unittest)
 python -m unittest tests.test_knowledge_module -v
+
+# 运行所有测试
+pytest tests/ -v
 ```
 
 ### 方式2：Docker部署（推荐）
@@ -346,16 +356,25 @@ curl "http://localhost:5000/api/knowledge/export?status=completed" \
   -o knowledge_export.csv
 ```
 
-#### 5. 访问Web UI
+#### 5. 访问Web界面
 
-在浏览器中访问 http://localhost:5000/kb 使用可视化界面管理知识库。
+**知识库UI** (查看和搜索已爬取数据)：
+- URL: http://localhost:5000/kb
+- 用途: 浏览文章、搜索链接、导出数据
 
-详细知识库文档：
+**控制面板** (管理百度网盘操作和配置)：
+- URL: http://localhost:5000/control
+- 用途: 文件浏览、队列监控、运行时配置
+
+详细文档：
+- [知识库UI文档](../KNOWLEDGE_UI_README.md)
+- [控制面板文档](../CONTROL_PANEL_README.md)
 - [知识库API文档](../README_KNOWLEDGE_API.md)
 - [知识库存储层文档](../README_KNOWLEDGE_REPO.md)
 - [知识库测试文档](KNOWLEDGE_TESTING.md)
 - [爬虫功能文档](../README_CRAWLER.md)
 - [链接提取文档](../README_LINK_EXTRACTOR.md)
+- [测试策略文档](../TESTING_SUMMARY.md)
 
 ## 配置说明
 
@@ -382,6 +401,8 @@ wp/
 ├── link_processor_service.py    # 链接处理服务
 ├── knowledge_repository.py      # 知识库数据访问层
 ├── knowledge_api.py             # 知识库API
+├── settings_manager.py          # 设置管理器
+├── control_panel_helpers.py     # 控制面板辅助函数
 ├── config.py                    # 配置管理
 ├── logger.py                    # 日志系统
 ├── init_db.py                   # 数据库初始化
@@ -390,12 +411,36 @@ wp/
 ├── Dockerfile                   # Docker镜像
 ├── docker-compose.yml           # Docker Compose配置
 ├── start.sh                     # 启动脚本
+├── run_unit_tests.sh            # 单元测试运行脚本
 ├── baidu-pan-server.service     # Systemd服务配置
+├── data/
+│   ├── baidu_pan.db             # SQLite数据库
+│   └── control_panel_settings.json  # 控制面板设置
 ├── tests/
 │   ├── __init__.py              # 测试模块初始化
-│   └── test_knowledge_module.py # 知识库完整测试套件
+│   ├── conftest.py              # Pytest配置
+│   ├── test_knowledge_module.py # 知识库测试 (Unittest)
+│   ├── unit/                    # 单元测试 (Pytest)
+│   │   ├── test_settings_manager.py
+│   │   ├── test_core_service_throttle.py
+│   │   └── test_control_panel_helpers.py
+│   └── integration/             # 集成测试 (Pytest)
+│       ├── conftest.py
+│       └── test_backend_endpoints.py
 ├── static/
-│   └── knowledge/               # 知识库Web UI
+│   ├── knowledge/               # 知识库Web UI
+│   │   ├── index.html
+│   │   ├── style.css
+│   │   └── app.js
+│   └── control-panel/           # 控制面板SPA
+│       ├── index.html
+│       ├── css/
+│       │   └── control-panel.css
+│       └── js/
+│           ├── main.js
+│           ├── browse.js
+│           ├── queue.js
+│           └── settings.js
 └── docs/
     ├── README.md                # 项目说明
     ├── API.md                   # API文档
@@ -434,13 +479,30 @@ RATE_LIMIT_DEFAULT=200 per hour  # 每小时200次请求
 
 默认使用SQLite数据库，数据文件位于 `data/baidu_pan.db`。也可以配置使用MySQL或PostgreSQL。
 
+控制面板设置保存在 `data/control_panel_settings.json`。
+
+### 6. 如何重置控制面板设置？
+
+```bash
+# 删除设置文件，重启后自动创建默认设置
+rm wp/data/control_panel_settings.json
+```
+
+或在控制面板Settings标签中点击"重置为默认值"按钮。
+
 ## 安全建议
 
 1. **修改默认API密钥**：生产环境务必修改 `API_SECRET_KEY`
+   ```python
+   import secrets
+   print(secrets.token_urlsafe(32))  # 生成强密码
+   ```
 2. **启用HTTPS**：生产环境建议使用Nginx反向代理并配置SSL证书
 3. **配置防火墙**：限制只允许必要的IP访问
-4. **定期备份数据**：定期备份data目录
-5. **更新Cookie**：定期更新百度网盘Cookie
+4. **限制控制面板访问**：使用IP白名单或VPN限制访问
+5. **定期备份数据**：定期备份data目录
+6. **更新Cookie**：定期更新百度网盘Cookie
+7. **保护设置文件**：确保 `data/control_panel_settings.json` 权限正确
 
 ## 许可证
 

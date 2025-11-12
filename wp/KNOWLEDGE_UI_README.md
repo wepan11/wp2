@@ -4,9 +4,12 @@
 
 知识库管理界面是一个功能完整的单页应用（SPA），提供了浏览、筛选、排序和导出知识库条目的能力。界面采用现代化设计，响应式布局，支持桌面和移动设备访问。
 
+**注意：** 知识库UI专注于**查看和搜索已爬取的文章和链接数据**。如需管理百度网盘文件、队列和运行时配置，请使用 [控制面板](/control)。
+
 ## 访问地址
 
-- **UI地址**: `http://your-server:port/kb`
+- **知识库UI**: `http://your-server:port/kb`
+- **控制面板**: `http://your-server:port/control` (不同于知识库UI)
 - **API文档**: `http://your-server:port/docs`
 
 ## 功能特性
@@ -283,6 +286,39 @@ wp/static/knowledge/
 - CSV导出
 - 响应式设计
 - 状态统计概览
+
+## 与控制面板的区别
+
+项目提供两个独立的UI界面，服务不同的用途：
+
+| 特性 | 知识库UI (`/kb`) | 控制面板 (`/control`) |
+|------|-----------------|---------------------|
+| **用途** | 查看和搜索爬取的文章/链接 | 管理百度网盘操作和系统配置 |
+| **数据源** | SQLite数据库（静态数据） | 实时Baidu API + 队列状态 |
+| **操作** | 搜索、过滤、导出 | 文件浏览、队列控制、设置 |
+| **实时性** | 否（查询已存储数据） | 是（自动刷新队列状态） |
+| **目标用户** | 内容研究人员 | 系统运维人员 |
+
+**何时使用知识库UI：**
+- 搜索已爬取的文章和链接
+- 按状态、标签、日期过滤数据
+- 导出数据为CSV供分析使用
+- 查看提取结果和错误信息
+
+**何时使用控制面板：**
+- 浏览百度网盘文件
+- 监控转存/分享队列状态
+- 调整节流和worker配置
+- 排查队列失败问题
+
+详细信息请参考：[CONTROL_PANEL_README.md](CONTROL_PANEL_README.md)
+
+## 相关文档
+
+- **[CONTROL_PANEL_README.md](CONTROL_PANEL_README.md)** - 控制面板完整文档
+- **[README_KNOWLEDGE_API.md](README_KNOWLEDGE_API.md)** - 知识库API文档
+- **[README_KNOWLEDGE_REPO.md](README_KNOWLEDGE_REPO.md)** - 知识库存储层文档
+- **[TESTING_SUMMARY.md](TESTING_SUMMARY.md)** - 测试策略和命令
 
 ## 许可证
 
