@@ -27,6 +27,7 @@ from crawler_service import CrawlerService
 from link_extractor_service import LinkExtractorService
 from link_processor_service import LinkProcessorService
 from knowledge_api import knowledge_bp
+from settings_manager import SettingsManager
 
 # 初始化配置
 config = get_config()
@@ -139,6 +140,7 @@ accounts: Dict[str, str] = {}  # 账户名 -> Cookie
 api_secret_key: str = config.API_SECRET_KEY
 crawler_service: Optional[CrawlerService] = None  # 爬虫服务实例
 link_extractor_service: Optional[LinkExtractorService] = None  # 链接提取服务实例
+settings_manager: Optional[SettingsManager] = None  # 设置管理器实例
 
 
 def load_accounts_from_env():
@@ -1233,6 +1235,181 @@ def get_aggregated_queues():
         }), 500
 
 
+@app.route('/api/control/settings', methods=['GET'])
+@require_auth
+def get_settings():
+    """
+    获取控制面板设置
+    ---
+    tags:
+      - 系统
+    security:
+      - ApiKeyAuth: []
+    responses:
+      200:
+        description: 当前设置
+        schema:
+          properties:
+            success:
+              type: boolean
+            data:
+              type: object
+              properties:
+                throttle:
+                  type: object
+                  description: 节流配置
+                workers:
+                  type: object
+                  description: 工作线程配置
+                rate_limit:
+                  type: object
+                  description: 速率限制配置
+                ui:
+                  type: object
+                  description: UI偏好设置
+                accounts:
+                  type: array
+                  description: 可用账户列表
+      401:
+        description: 未授权
+    """
+    try:
+        global settings_manager
+        if not settings_manager:
+            settings_manager = SettingsManager()
+        
+        settings = settings_manager.load()
+        
+        # Add available accounts
+        account_list = list(accounts.keys())
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                **settings,
+                'accounts': account_list,
+                'default_account': config.DEFAULT_ACCOUNT
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"获取设置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': '获取设置失败'
+        }), 500
+
+
+@app.route('/api/control/settings', methods=['PUT', 'PATCH'])
+@require_auth
+def update_settings():
+    """
+    更新控制面板设置
+    ---
+    tags:
+      - 系统
+    security:
+      - ApiKeyAuth: []
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            throttle:
+              type: object
+              description: 节流配置
+            workers:
+              type: object
+              description: 工作线程配置
+            rate_limit:
+              type: object
+              description: 速率限制配置
+            ui:
+              type: object
+              description: UI偏好设置
+    responses:
+      200:
+        description: 设置更新成功
+      400:
+        description: 验证失败
+      401:
+        description: 未授权
+    """
+    try:
+        global settings_manager
+        if not settings_manager:
+            settings_manager = SettingsManager()
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing request body',
+                'message': '缺少请求体'
+            }), 400
+        
+        # Validate throttle settings if provided
+        if 'throttle' in data:
+            is_valid, error_msg = settings_manager.validate_throttle_settings(data['throttle'])
+            if not is_valid:
+                return jsonify({
+                    'success': False,
+                    'error': error_msg,
+                    'message': '节流配置验证失败'
+                }), 400
+        
+        # Validate worker settings if provided
+        if 'workers' in data:
+            is_valid, error_msg = settings_manager.validate_worker_settings(data['workers'])
+            if not is_valid:
+                return jsonify({
+                    'success': False,
+                    'error': error_msg,
+                    'message': '工作线程配置验证失败'
+                }), 400
+        
+        # Update settings
+        updated_settings = settings_manager.update(data)
+        
+        # Apply throttle config to all active services
+        if 'throttle' in data:
+            throttle_config = updated_settings['throttle']
+            for account_name, service in services.items():
+                if service and service.adapter:
+                    service.update_throttle(throttle_config)
+                    logger.info(f"已更新账户 {account_name} 的节流配置")
+        
+        # Update global config if rate_limit changed
+        if 'rate_limit' in data and 'enabled' in data['rate_limit']:
+            config.RATE_LIMIT_ENABLED = data['rate_limit']['enabled']
+        
+        # Update worker counts in global config
+        if 'workers' in data:
+            if 'max_transfer_workers' in data['workers']:
+                config.MAX_TRANSFER_WORKERS = data['workers']['max_transfer_workers']
+            if 'max_share_workers' in data['workers']:
+                config.MAX_SHARE_WORKERS = data['workers']['max_share_workers']
+        
+        logger.info(f"设置已更新: {list(data.keys())}")
+        
+        return jsonify({
+            'success': True,
+            'data': updated_settings,
+            'message': '设置已保存并应用'
+        })
+        
+    except Exception as e:
+        logger.error(f"更新设置失败: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': '更新设置失败'
+        }), 500
+
+
 # ============================================================================
 # 爬虫接口
 # ============================================================================
@@ -1788,6 +1965,8 @@ def ratelimit_handler(e):
 
 def initialize_app():
     """初始化应用"""
+    global settings_manager
+    
     logger.info("正在初始化应用...")
     
     # 检查API密钥
@@ -1799,6 +1978,10 @@ def initialize_app():
     if not initialize_database(config):
         logger.error("数据库初始化失败")
         sys.exit(1)
+    
+    # 初始化设置管理器
+    logger.info("初始化设置管理器...")
+    settings_manager = SettingsManager()
     
     # 加载账户
     logger.info("加载账户配置...")

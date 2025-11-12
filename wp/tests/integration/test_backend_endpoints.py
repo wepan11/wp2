@@ -388,3 +388,248 @@ class TestControlQueues:
         if 'test_account' in accounts:
             assert accounts['test_account']['available'] is False
             assert 'error' in accounts['test_account']
+
+
+class TestSettingsEndpoints:
+    """Test settings management endpoints."""
+    
+    def test_get_settings_requires_auth(self, client):
+        """Settings endpoint should require API key."""
+        response = client.get('/api/control/settings')
+        assert response.status_code == 401
+        data = response.get_json()
+        assert data['success'] is False
+    
+    def test_get_settings_happy_path(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings GET should return default settings structure."""
+        # Monkeypatch settings manager to use temp directory
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        # Use temporary directory for settings file
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        response = client.get('/api/control/settings', headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        
+        # Check structure
+        settings_data = data['data']
+        assert 'throttle' in settings_data
+        assert 'workers' in settings_data
+        assert 'rate_limit' in settings_data
+        assert 'ui' in settings_data
+        assert 'accounts' in settings_data
+        
+        # Check throttle settings
+        throttle = settings_data['throttle']
+        assert 'jitter_ms_min' in throttle
+        assert 'jitter_ms_max' in throttle
+        assert 'ops_per_window' in throttle
+        assert 'window_sec' in throttle
+        
+        # Check worker settings
+        workers = settings_data['workers']
+        assert 'max_transfer_workers' in workers
+        assert 'max_share_workers' in workers
+        
+        # Check UI settings
+        ui = settings_data['ui']
+        assert 'auto_refresh_interval' in ui
+        assert 'api_key_retention' in ui
+    
+    def test_update_settings_requires_auth(self, client):
+        """Settings PUT should require API key."""
+        response = client.put('/api/control/settings', json={
+            'throttle': {'jitter_ms_min': 1000}
+        })
+        assert response.status_code == 401
+    
+    def test_update_settings_missing_body(self, client, auth_headers):
+        """Settings PUT should reject missing request body."""
+        response = client.put('/api/control/settings', headers=auth_headers)
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'body' in data['error'].lower() or 'request' in data['error'].lower()
+    
+    def test_update_settings_valid_throttle(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings PUT should accept and persist valid throttle updates."""
+        # Monkeypatch settings manager to use temp directory
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        # Update throttle settings
+        new_settings = {
+            'throttle': {
+                'jitter_ms_min': 1000,
+                'jitter_ms_max': 2000,
+                'ops_per_window': 100,
+                'window_sec': 120,
+                'window_rest_sec': 30,
+                'max_consecutive_failures': 10,
+                'pause_sec_on_failure': 120,
+                'backoff_factor': 2.0,
+                'cooldown_on_errno_-62_sec': 180
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=new_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert 'data' in data
+        
+        # Verify updated values
+        updated_throttle = data['data']['throttle']
+        assert updated_throttle['jitter_ms_min'] == 1000
+        assert updated_throttle['jitter_ms_max'] == 2000
+        assert updated_throttle['ops_per_window'] == 100
+    
+    def test_update_settings_invalid_throttle_values(self, client, auth_headers):
+        """Settings PUT should reject invalid throttle values."""
+        invalid_settings = {
+            'throttle': {
+                'jitter_ms_min': -100,  # Invalid: negative
+                'jitter_ms_max': 2000,
+                'ops_per_window': 50,
+                'window_sec': 60,
+                'window_rest_sec': 20,
+                'max_consecutive_failures': 5,
+                'pause_sec_on_failure': 60,
+                'backoff_factor': 1.5,
+                'cooldown_on_errno_-62_sec': 120
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=invalid_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'error' in data
+    
+    def test_update_settings_invalid_worker_values(self, client, auth_headers):
+        """Settings PUT should reject invalid worker values."""
+        invalid_settings = {
+            'workers': {
+                'max_transfer_workers': 0,  # Invalid: must be >= 1
+                'max_share_workers': 2
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=invalid_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'error' in data
+    
+    def test_update_settings_valid_workers(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings PUT should accept valid worker settings."""
+        # Monkeypatch settings manager to use temp directory
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        new_settings = {
+            'workers': {
+                'max_transfer_workers': 3,
+                'max_share_workers': 2
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=new_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['data']['workers']['max_transfer_workers'] == 3
+        assert data['data']['workers']['max_share_workers'] == 2
+    
+    def test_update_settings_partial_update(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings PUT should support partial updates (only update provided fields)."""
+        # Monkeypatch settings manager to use temp directory
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        # Update only UI settings
+        partial_settings = {
+            'ui': {
+                'auto_refresh_interval': 10000,
+                'api_key_retention': False
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=partial_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        
+        # UI should be updated
+        assert data['data']['ui']['auto_refresh_interval'] == 10000
+        assert data['data']['ui']['api_key_retention'] is False
+        
+        # Other settings should still exist (not removed)
+        assert 'throttle' in data['data']
+        assert 'workers' in data['data']

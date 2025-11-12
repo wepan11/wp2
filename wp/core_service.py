@@ -894,6 +894,29 @@ class CoreService:
         # BaiduPanAdapter的search方法
         return self.adapter.search(keyword, path)
 
+    def update_throttle(self, throttle_config: Dict[str, Any]):
+        """
+        Update throttler configuration and apply to active workers.
+        
+        Args:
+            throttle_config: New throttle configuration dictionary
+        """
+        # Create new throttler with updated config
+        new_config = self.config.copy()
+        new_config['throttle'] = throttle_config
+        self.throttler = Throttler(new_config)
+        
+        # Update throttler reference in active workers
+        if self.transfer_worker and self.transfer_worker.is_alive():
+            self.transfer_worker.throttler = self.throttler
+            self.log("转存工作线程的节流配置已更新")
+        
+        if self.share_worker and self.share_worker.is_alive():
+            self.share_worker.throttler = self.throttler
+            self.log("分享工作线程的节流配置已更新")
+        
+        self.log("节流配置已更新")
+
     def clear_transfer_queue(self):
         """清空转存队列"""
         self.transfer_queue.clear()
