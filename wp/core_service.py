@@ -521,6 +521,16 @@ class CoreService:
 
         # 回调函数
         self.log_callback: Optional[Callable] = None
+        
+        # 默认设置
+        self.share_defaults = {
+            'expiry': 7,
+            'auto_password': True,
+            'fixed_password': ''
+        }
+        self.transfer_defaults = {
+            'target_path': '/批量转存'
+        }
 
     def set_log_callback(self, callback: Callable):
         """设置日志回调函数"""
@@ -916,6 +926,29 @@ class CoreService:
             self.log("分享工作线程的节流配置已更新")
         
         self.log("节流配置已更新")
+    
+    def apply_settings(self, settings: Dict[str, Any]):
+        """
+        Apply full settings bundle to the service.
+        
+        Args:
+            settings: Full settings dictionary including throttle, share_defaults, transfer_defaults
+        """
+        # Apply throttle settings if present
+        if 'throttle' in settings:
+            self.update_throttle(settings['throttle'])
+        
+        # Apply share defaults if present
+        if 'share_defaults' in settings:
+            self.share_defaults = settings['share_defaults'].copy()
+            self.log(f"分享默认设置已更新: 有效期={self.share_defaults.get('expiry')}天")
+        
+        # Apply transfer defaults if present
+        if 'transfer_defaults' in settings:
+            self.transfer_defaults = settings['transfer_defaults'].copy()
+            self.log(f"转存默认设置已更新: 目标路径={self.transfer_defaults.get('target_path')}")
+        
+        self.log("服务设置已完全更新")
 
     def clear_transfer_queue(self):
         """清空转存队列"""

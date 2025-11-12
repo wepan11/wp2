@@ -137,6 +137,15 @@ class FakeCoreService:
     def update_throttle(self, throttle_config: Dict[str, Any]):
         """Update throttler configuration (stub for testing)."""
         self.config['throttle'] = throttle_config
+    
+    def apply_settings(self, settings: Dict[str, Any]):
+        """Apply full settings bundle (stub for testing)."""
+        if 'throttle' in settings:
+            self.config['throttle'] = settings['throttle']
+        if 'share_defaults' in settings:
+            self.config['share_defaults'] = settings['share_defaults']
+        if 'transfer_defaults' in settings:
+            self.config['transfer_defaults'] = settings['transfer_defaults']
 
 
 @pytest.fixture

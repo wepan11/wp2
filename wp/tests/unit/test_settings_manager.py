@@ -502,6 +502,190 @@ class TestSettingsManagerValidation:
         assert is_valid is True
 
 
+class TestShareDefaultsValidation:
+    """Test share defaults validation."""
+    
+    def test_validate_share_defaults_valid(self, tmp_path):
+        """Valid share defaults should pass validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        valid_share_defaults = {
+            'expiry': 7,
+            'auto_password': True,
+            'fixed_password': ''
+        }
+        
+        is_valid, error = manager.validate_share_defaults(valid_share_defaults)
+        assert is_valid is True
+        assert error is None
+    
+    def test_validate_share_defaults_all_expiry_values(self, tmp_path):
+        """All valid expiry values should pass validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        for expiry in [0, 1, 7, 30]:
+            share_defaults = {'expiry': expiry}
+            is_valid, error = manager.validate_share_defaults(share_defaults)
+            assert is_valid is True, f"expiry={expiry} should be valid"
+    
+    def test_validate_share_defaults_invalid_expiry(self, tmp_path):
+        """Invalid expiry values should fail validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        invalid_share_defaults = {'expiry': 14}
+        is_valid, error = manager.validate_share_defaults(invalid_share_defaults)
+        assert is_valid is False
+        assert 'expiry' in error.lower()
+    
+    def test_validate_share_defaults_valid_fixed_password(self, tmp_path):
+        """4-character fixed password should pass validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        share_defaults = {'fixed_password': 'ab12'}
+        is_valid, error = manager.validate_share_defaults(share_defaults)
+        assert is_valid is True
+    
+    def test_validate_share_defaults_invalid_password_length(self, tmp_path):
+        """Invalid password length should fail validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        # 3 characters
+        share_defaults = {'fixed_password': 'abc'}
+        is_valid, error = manager.validate_share_defaults(share_defaults)
+        assert is_valid is False
+        assert 'password' in error.lower()
+        
+        # 5 characters
+        share_defaults = {'fixed_password': 'abcde'}
+        is_valid, error = manager.validate_share_defaults(share_defaults)
+        assert is_valid is False
+    
+    def test_validate_share_defaults_auto_password_type(self, tmp_path):
+        """auto_password must be boolean."""
+        manager = SettingsManager(str(tmp_path))
+        
+        share_defaults = {'auto_password': 'true'}
+        is_valid, error = manager.validate_share_defaults(share_defaults)
+        assert is_valid is False
+        assert 'boolean' in error.lower()
+
+
+class TestTransferDefaultsValidation:
+    """Test transfer defaults validation."""
+    
+    def test_validate_transfer_defaults_valid(self, tmp_path):
+        """Valid transfer defaults should pass validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        valid_transfer_defaults = {'target_path': '/批量转存'}
+        is_valid, error = manager.validate_transfer_defaults(valid_transfer_defaults)
+        assert is_valid is True
+        assert error is None
+    
+    def test_validate_transfer_defaults_empty_path(self, tmp_path):
+        """Empty target_path should fail validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        invalid_transfer_defaults = {'target_path': ''}
+        is_valid, error = manager.validate_transfer_defaults(invalid_transfer_defaults)
+        assert is_valid is False
+        assert 'empty' in error.lower()
+    
+    def test_validate_transfer_defaults_no_leading_slash(self, tmp_path):
+        """target_path without leading slash should fail validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        invalid_transfer_defaults = {'target_path': 'folder'}
+        is_valid, error = manager.validate_transfer_defaults(invalid_transfer_defaults)
+        assert is_valid is False
+        assert 'start with' in error.lower()
+    
+    def test_validate_transfer_defaults_whitespace_only(self, tmp_path):
+        """Whitespace-only target_path should fail validation."""
+        manager = SettingsManager(str(tmp_path))
+        
+        invalid_transfer_defaults = {'target_path': '   '}
+        is_valid, error = manager.validate_transfer_defaults(invalid_transfer_defaults)
+        assert is_valid is False
+
+
+class TestNewSettingsPersistence:
+    """Test persistence of new settings sections."""
+    
+    def test_defaults_include_new_sections(self, tmp_path):
+        """Default settings should include share_defaults and transfer_defaults."""
+        manager = SettingsManager(str(tmp_path))
+        defaults = manager.get_default_settings()
+        
+        assert 'share_defaults' in defaults
+        assert 'transfer_defaults' in defaults
+        
+        assert 'expiry' in defaults['share_defaults']
+        assert 'auto_password' in defaults['share_defaults']
+        assert 'fixed_password' in defaults['share_defaults']
+        
+        assert 'target_path' in defaults['transfer_defaults']
+    
+    def test_save_and_load_new_sections(self, tmp_path):
+        """New settings sections should persist correctly."""
+        manager = SettingsManager(str(tmp_path))
+        
+        custom_settings = manager.get_default_settings()
+        custom_settings['share_defaults']['expiry'] = 30
+        custom_settings['share_defaults']['fixed_password'] = 'test'
+        custom_settings['transfer_defaults']['target_path'] = '/custom/path'
+        
+        manager.save(custom_settings)
+        
+        # Load in new manager instance
+        new_manager = SettingsManager(str(tmp_path))
+        loaded = new_manager.load()
+        
+        assert loaded['share_defaults']['expiry'] == 30
+        assert loaded['share_defaults']['fixed_password'] == 'test'
+        assert loaded['transfer_defaults']['target_path'] == '/custom/path'
+    
+    def test_partial_update_new_sections(self, tmp_path):
+        """Partial updates should work for new sections."""
+        manager = SettingsManager(str(tmp_path))
+        
+        updates = {
+            'share_defaults': {
+                'expiry': 1
+            },
+            'transfer_defaults': {
+                'target_path': '/new/path'
+            }
+        }
+        
+        result = manager.update(updates)
+        
+        assert result['share_defaults']['expiry'] == 1
+        assert result['share_defaults']['auto_password'] is True  # preserved
+        assert result['transfer_defaults']['target_path'] == '/new/path'
+    
+    def test_backward_compatibility(self, tmp_path):
+        """Old settings files without new sections should merge with defaults."""
+        manager = SettingsManager(str(tmp_path))
+        
+        # Simulate old settings file without new sections
+        old_settings = {
+            'throttle': manager.get_default_settings()['throttle'],
+            'workers': manager.get_default_settings()['workers']
+        }
+        
+        settings_file = os.path.join(str(tmp_path), 'control_panel_settings.json')
+        with open(settings_file, 'w') as f:
+            json.dump(old_settings, f)
+        
+        loaded = manager.load()
+        
+        # Should have merged with defaults
+        assert 'share_defaults' in loaded
+        assert 'transfer_defaults' in loaded
+        assert loaded['share_defaults']['expiry'] == 7  # default value
+
+
 class TestSettingsManagerEdgeCases:
     """Test edge cases and error scenarios."""
     

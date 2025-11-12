@@ -141,6 +141,7 @@ api_secret_key: str = config.API_SECRET_KEY
 crawler_service: Optional[CrawlerService] = None  # 爬虫服务实例
 link_extractor_service: Optional[LinkExtractorService] = None  # 链接提取服务实例
 settings_manager: Optional[SettingsManager] = None  # 设置管理器实例
+current_settings: Dict[str, Any] = {}  # 当前设置缓存
 
 
 def load_accounts_from_env():
@@ -222,6 +223,8 @@ def require_service(f):
 
 def get_or_create_service(account: Optional[str] = None) -> Optional[CoreService]:
     """获取或创建服务实例"""
+    global current_settings
+    
     if not account:
         account = config.DEFAULT_ACCOUNT
     
@@ -236,12 +239,21 @@ def get_or_create_service(account: Optional[str] = None) -> Optional[CoreService
     
     cookie = accounts[account]
     
-    # 创建服务实例
-    throttle_config = config.get_throttle_config()
-    service = CoreService(cookie, throttle_config)
+    # 创建服务实例，传递完整设置
+    # 如果current_settings为空，使用config的throttle配置
+    if current_settings:
+        service_config = {'throttle': current_settings.get('throttle', config.get_throttle_config()['throttle'])}
+    else:
+        service_config = config.get_throttle_config()
+    
+    service = CoreService(cookie, service_config)
     success, error_msg = service.login(cookie)
     
     if success:
+        # 应用完整设置到新创建的服务
+        if current_settings:
+            service.apply_settings(current_settings)
+        
         services[account] = service
         logger.info(f"账户登录成功: {account}")
         return service
@@ -1434,7 +1446,7 @@ def update_settings():
         description: 未授权
     """
     try:
-        global settings_manager
+        global settings_manager, current_settings
         if not settings_manager:
             settings_manager = SettingsManager()
         
@@ -1466,27 +1478,59 @@ def update_settings():
                     'message': '工作线程配置验证失败'
                 }), 400
         
+        # Validate share defaults if provided
+        if 'share_defaults' in data:
+            is_valid, error_msg = settings_manager.validate_share_defaults(data['share_defaults'])
+            if not is_valid:
+                return jsonify({
+                    'success': False,
+                    'error': error_msg,
+                    'message': '分享默认配置验证失败'
+                }), 400
+        
+        # Validate transfer defaults if provided
+        if 'transfer_defaults' in data:
+            is_valid, error_msg = settings_manager.validate_transfer_defaults(data['transfer_defaults'])
+            if not is_valid:
+                return jsonify({
+                    'success': False,
+                    'error': error_msg,
+                    'message': '转存默认配置验证失败'
+                }), 400
+        
         # Update settings
         updated_settings = settings_manager.update(data)
+        current_settings = updated_settings  # Update cached settings
         
-        # Apply throttle config to all active services
-        if 'throttle' in data:
-            throttle_config = updated_settings['throttle']
-            for account_name, service in services.items():
-                if service and service.adapter:
-                    service.update_throttle(throttle_config)
-                    logger.info(f"已更新账户 {account_name} 的节流配置")
+        # Apply settings to all active services
+        for account_name, service in services.items():
+            if service and service.adapter:
+                service.apply_settings(updated_settings)
+                logger.info(f"已更新账户 {account_name} 的设置")
         
         # Update global config if rate_limit changed
         if 'rate_limit' in data and 'enabled' in data['rate_limit']:
             config.RATE_LIMIT_ENABLED = data['rate_limit']['enabled']
         
-        # Update worker counts in global config
+        # Update worker counts in global config (clamp to 1 to respect single-thread requirement)
         if 'workers' in data:
             if 'max_transfer_workers' in data['workers']:
-                config.MAX_TRANSFER_WORKERS = data['workers']['max_transfer_workers']
+                config.MAX_TRANSFER_WORKERS = max(1, min(1, data['workers']['max_transfer_workers']))
             if 'max_share_workers' in data['workers']:
-                config.MAX_SHARE_WORKERS = data['workers']['max_share_workers']
+                config.MAX_SHARE_WORKERS = max(1, min(1, data['workers']['max_share_workers']))
+        
+        # Update throttle config in global config for consistency
+        if 'throttle' in data:
+            throttle = updated_settings['throttle']
+            config.THROTTLE_JITTER_MS_MIN = throttle['jitter_ms_min']
+            config.THROTTLE_JITTER_MS_MAX = throttle['jitter_ms_max']
+            config.THROTTLE_OPS_PER_WINDOW = throttle['ops_per_window']
+            config.THROTTLE_WINDOW_SEC = throttle['window_sec']
+            config.THROTTLE_WINDOW_REST_SEC = throttle['window_rest_sec']
+            config.THROTTLE_MAX_CONSECUTIVE_FAILURES = throttle['max_consecutive_failures']
+            config.THROTTLE_PAUSE_SEC_ON_FAILURE = throttle['pause_sec_on_failure']
+            config.THROTTLE_BACKOFF_FACTOR = throttle['backoff_factor']
+            config.THROTTLE_COOLDOWN_ON_ERRNO_62_SEC = throttle['cooldown_on_errno_-62_sec']
         
         logger.info(f"设置已更新: {list(data.keys())}")
         
@@ -2097,7 +2141,7 @@ def ratelimit_handler(e):
 
 def initialize_app():
     """初始化应用"""
-    global settings_manager
+    global settings_manager, current_settings
     
     logger.info("正在初始化应用...")
     
@@ -2111,9 +2155,11 @@ def initialize_app():
         logger.error("数据库初始化失败")
         sys.exit(1)
     
-    # 初始化设置管理器
+    # 初始化设置管理器并加载当前设置
     logger.info("初始化设置管理器...")
     settings_manager = SettingsManager()
+    current_settings = settings_manager.load()
+    logger.info("已加载控制面板设置")
     
     # 加载账户
     logger.info("加载账户配置...")

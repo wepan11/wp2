@@ -57,6 +57,14 @@ class SettingsManager:
             'ui': {
                 'auto_refresh_interval': 5000,  # milliseconds
                 'api_key_retention': True  # whether to persist API key in localStorage
+            },
+            'share_defaults': {
+                'expiry': 7,  # 0=永久, 1=1天, 7=7天, 30=30天
+                'auto_password': True,  # 自动生成随机密码
+                'fixed_password': ''  # 固定密码（4个字符），为空则使用auto_password
+            },
+            'transfer_defaults': {
+                'target_path': '/批量转存'  # 默认转存目标路径
             }
         }
     
@@ -216,3 +224,61 @@ class SettingsManager:
             
         except (KeyError, TypeError, ValueError) as e:
             return False, f"Invalid worker settings: {str(e)}"
+    
+    def validate_share_defaults(self, share_defaults: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """
+        Validate share default settings.
+        
+        Args:
+            share_defaults: Share defaults dictionary
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        try:
+            if 'expiry' in share_defaults:
+                expiry = share_defaults['expiry']
+                if expiry not in [0, 1, 7, 30]:
+                    return False, "expiry must be one of: 0 (permanent), 1, 7, or 30 days"
+            
+            if 'fixed_password' in share_defaults:
+                password = share_defaults['fixed_password']
+                if not isinstance(password, str):
+                    return False, "fixed_password must be a string"
+                if len(password) not in [0, 4]:
+                    return False, "fixed_password must be empty or exactly 4 characters"
+            
+            if 'auto_password' in share_defaults:
+                auto_pwd = share_defaults['auto_password']
+                if not isinstance(auto_pwd, bool):
+                    return False, "auto_password must be a boolean"
+            
+            return True, None
+            
+        except (KeyError, TypeError, ValueError) as e:
+            return False, f"Invalid share defaults: {str(e)}"
+    
+    def validate_transfer_defaults(self, transfer_defaults: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """
+        Validate transfer default settings.
+        
+        Args:
+            transfer_defaults: Transfer defaults dictionary
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        try:
+            if 'target_path' in transfer_defaults:
+                target_path = transfer_defaults['target_path']
+                if not isinstance(target_path, str):
+                    return False, "target_path must be a string"
+                if not target_path or not target_path.strip():
+                    return False, "target_path cannot be empty"
+                if not target_path.startswith('/'):
+                    return False, "target_path must start with /"
+            
+            return True, None
+            
+        except (KeyError, TypeError, ValueError) as e:
+            return False, f"Invalid transfer defaults: {str(e)}"
