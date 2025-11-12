@@ -276,10 +276,126 @@
                 <section id="settingsView" class="tab-view" style="display: none;">
                     <div class="view-header">
                         <h2>设置</h2>
+                        <div class="view-actions">
+                            <button id="saveSettingsBtn" class="btn btn-primary btn-sm">
+                                <span class="icon">💾</span> 保存设置
+                            </button>
+                        </div>
                     </div>
-                    <div class="placeholder-content">
-                        <p class="empty-icon">🚧</p>
-                        <p>设置功能即将推出</p>
+
+                    <div id="settingsLoadingState" class="state-message loading">
+                        <div class="spinner"></div>
+                        <p>加载设置...</p>
+                    </div>
+
+                    <div id="settingsContent" class="settings-content" style="display: none;">
+                        <div class="settings-section">
+                            <h3>⚡ 节流配置 (Throttle Settings)</h3>
+                            <p class="help-text">控制API调用频率以避免触发速率限制</p>
+                            
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label for="jitter_ms_min">最小延迟 (ms)</label>
+                                    <input type="number" id="jitter_ms_min" min="0" max="10000" />
+                                    <span class="help-text">每次请求的最小随机延迟</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="jitter_ms_max">最大延迟 (ms)</label>
+                                    <input type="number" id="jitter_ms_max" min="0" max="10000" />
+                                    <span class="help-text">每次请求的最大随机延迟</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="ops_per_window">时间窗口操作数</label>
+                                    <input type="number" id="ops_per_window" min="1" max="1000" />
+                                    <span class="help-text">每个时间窗口允许的最大操作数</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="window_sec">时间窗口 (秒)</label>
+                                    <input type="number" id="window_sec" min="1" max="3600" />
+                                    <span class="help-text">操作计数的时间窗口</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="window_rest_sec">窗口休息时间 (秒)</label>
+                                    <input type="number" id="window_rest_sec" min="0" max="600" />
+                                    <span class="help-text">达到窗口限制后的休息时间</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="max_consecutive_failures">最大连续失败次数</label>
+                                    <input type="number" id="max_consecutive_failures" min="1" max="100" />
+                                    <span class="help-text">触发暂停前的最大失败次数</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="pause_sec_on_failure">失败后暂停时间 (秒)</label>
+                                    <input type="number" id="pause_sec_on_failure" min="0" max="3600" />
+                                    <span class="help-text">达到最大失败后的暂停时间</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="cooldown_on_errno_62_sec">错误-62冷却时间 (秒)</label>
+                                    <input type="number" id="cooldown_on_errno_62_sec" min="0" max="3600" />
+                                    <span class="help-text">遇到访问限制错误后的冷却时间</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>👷 工作线程配置 (Worker Settings)</h3>
+                            <p class="help-text">控制并发工作线程数量</p>
+                            
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label for="max_transfer_workers">最大转存工作线程</label>
+                                    <input type="number" id="max_transfer_workers" min="1" max="10" />
+                                    <span class="help-text">同时运行的转存工作线程数</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label for="max_share_workers">最大分享工作线程</label>
+                                    <input type="number" id="max_share_workers" min="1" max="10" />
+                                    <span class="help-text">同时运行的分享工作线程数</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>🚦 速率限制 (Rate Limiting)</h3>
+                            <p class="help-text">全局API速率限制开关</p>
+                            
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <input type="checkbox" id="rate_limit_enabled" />
+                                    <span>启用速率限制</span>
+                                </label>
+                                <span class="help-text">为API端点启用全局速率限制</span>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>🎨 界面偏好 (UI Preferences)</h3>
+                            <p class="help-text">自定义控制面板行为</p>
+                            
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <label for="auto_refresh_interval">自动刷新间隔 (毫秒)</label>
+                                    <input type="number" id="auto_refresh_interval" min="1000" max="60000" step="1000" />
+                                    <span class="help-text">队列视图自动刷新的间隔时间</span>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <label class="toggle-label">
+                                        <input type="checkbox" id="api_key_retention" />
+                                        <span>记住API密钥</span>
+                                    </label>
+                                    <span class="help-text">在浏览器中保存API密钥（本地存储）</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </section>
@@ -291,5 +407,6 @@
     <script src="js/main.js"></script>
     <script src="js/browse.js"></script>
     <script src="js/queue.js"></script>
+    <script src="js/settings.js"></script>
 </body>
 </html>

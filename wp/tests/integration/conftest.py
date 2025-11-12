@@ -133,6 +133,10 @@ class FakeCoreService:
                 'share_password': ''
             }
         ]
+    
+    def update_throttle(self, throttle_config: Dict[str, Any]):
+        """Update throttler configuration (stub for testing)."""
+        self.config['throttle'] = throttle_config
 
 
 @pytest.fixture
