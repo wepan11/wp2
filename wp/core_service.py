@@ -866,3 +866,77 @@ class CoreService:
                     '分享链接': complete_link  # 完整链接（包含pwd参数）
                 })
         return results
+
+    def get_transfer_queue(self) -> List[Dict[str, Any]]:
+        """获取转存队列"""
+        return self.transfer_queue
+
+    def get_share_queue(self) -> List[Dict[str, Any]]:
+        """获取分享队列"""
+        return self.share_queue
+
+    def list_dir(self, path: str):
+        """
+        列出指定路径的文件
+        委托给adapter的list_dir方法
+        """
+        if not self.adapter:
+            return -4  # 未登录错误码
+        return self.adapter.list_dir(path)
+
+    def search_files(self, keyword: str, path: str = '/'):
+        """
+        搜索文件
+        委托给adapter的search方法
+        """
+        if not self.adapter:
+            return []
+        # BaiduPanAdapter的search方法
+        return self.adapter.search(keyword, path)
+
+    def clear_transfer_queue(self):
+        """清空转存队列"""
+        self.transfer_queue.clear()
+        self.log("转存队列已清空")
+
+    def clear_share_queue(self):
+        """清空分享队列"""
+        self.share_queue.clear()
+        self.log("分享队列已清空")
+
+    def export_transfer_results(self) -> List[Dict[str, Any]]:
+        """
+        导出转存结果
+        返回所有已完成的转存任务
+        """
+        results = []
+        for task in self.transfer_queue:
+            if task['status'] == 'completed':
+                results.append({
+                    'share_link': task.get('share_link', ''),
+                    'target_path': task.get('target_path', ''),
+                    'filename': task.get('filename', ''),
+                    'status': task['status'],
+                    'created_at': task.get('created_at', ''),
+                    'completed_at': task.get('completed_at', '')
+                })
+        return results
+
+    def export_share_results(self) -> List[Dict[str, Any]]:
+        """
+        导出分享结果
+        返回所有已完成的分享任务
+        """
+        results = []
+        for task in self.share_queue:
+            if task['status'] == 'completed':
+                results.append({
+                    'title': task.get('title', task['file_info']['name']),
+                    'share_link': task.get('share_link', ''),
+                    'share_password': task.get('share_password', ''),
+                    'file_path': task['file_info']['path'],
+                    'status': task['status'],
+                    'created_at': task.get('created_at', ''),
+                    'completed_at': task.get('completed_at', '')
+                })
+        return results

@@ -1,4 +1,4 @@
-# 知识库测试快速指南
+# 测试快速指南
 
 ## 运行测试
 
@@ -6,11 +6,17 @@
 ```bash
 cd wp
 python -m unittest discover tests -v
+python3 -m pytest tests/integration -v
 ```
 
-### 只运行知识库模块测试
+### 运行知识库模块测试
 ```bash
 python -m unittest tests.test_knowledge_module -v
+```
+
+### 运行集成测试（后端API）
+```bash
+python3 -m pytest tests/integration -v
 ```
 
 ### 运行特定测试类
@@ -56,6 +62,16 @@ python -m unittest tests.test_knowledge_module.TestKnowledgeRepository.test_tag_
 - ✅ 详情页 (404测试)
 - ✅ 静态路由
 
+### 后端控制API集成测试 (26个)
+- ✅ 健康检查和系统信息端点
+- ✅ 认证流程 (有/无API密钥)
+- ✅ 文件管理 (列表/搜索)
+- ✅ 转存操作 (状态/队列)
+- ✅ 分享操作 (状态/队列)
+- ✅ 账户参数处理
+- ✅ 错误传播和处理
+- ✅ 无真实网络调用 (使用FakeCoreService)
+
 ## 测试特点
 
 ### 完全隔离
@@ -76,6 +92,7 @@ python -m unittest tests.test_knowledge_module.TestKnowledgeRepository.test_tag_
 
 ## 预期结果
 
+### 单元测试 (unittest)
 ```
 test_entries_invalid_date_format ... ok
 test_entries_invalid_sort_field ... ok
@@ -87,6 +104,17 @@ test_tag_derivation ... ok
 Ran 32 tests in ~2s
 
 OK
+```
+
+### 集成测试 (pytest)
+```
+tests/integration/test_backend_endpoints.py::TestHealthAndInfo::test_health_no_auth_required PASSED
+tests/integration/test_backend_endpoints.py::TestHealthAndInfo::test_info_requires_auth PASSED
+tests/integration/test_backend_endpoints.py::TestFileManagement::test_list_files_happy_path PASSED
+...
+tests/integration/test_backend_endpoints.py::TestErrorPropagation::test_search_files_returns_empty_on_error PASSED
+
+======================== 26 passed in ~1s ========================
 ```
 
 ## 故障排查
@@ -112,3 +140,4 @@ OK
 - [测试实施总结](TESTING_SUMMARY.md)
 - [知识库API文档](README_KNOWLEDGE_API.md)
 - [知识库存储层文档](README_KNOWLEDGE_REPO.md)
+- [集成测试文档](tests/integration/README.md)
