@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<!--
+  Control Panel Browse UI
+  
+  Required assets:
+  - css/control-panel.css: Main stylesheet for control panel layout and components
+  - js/main.js: Core application logic, API key management, account selection, and event bus
+  - js/browse.js: Browse module for file listing, search, breadcrumb navigation, and file details
+  
+  Features:
+  - API key authentication with localStorage persistence
+  - Multi-account support with account selector
+  - File browsing with breadcrumb navigation
+  - File search with debounced input
+  - File details drawer with metadata display
+  - Loading, error, and empty state handling
+  - Responsive layout with sidebar navigation
+  - Placeholder sections for queue and settings tabs
+  
+  API Endpoints Used:
+  - GET /api/info: Fetch available accounts
+  - GET /api/files/list?path={path}&account={account}: List directory contents
+  - GET /api/files/search?keyword={keyword}&path={path}&account={account}: Search files
+  
+  Access:
+  - Direct: /static/control-panel/index.html
+  - Route (pending): /control
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>百度网盘控制面板 - Control Panel</title>
+    <link rel="stylesheet" href="css/control-panel.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1>🗂️ 百度网盘控制面板</h1>
+                <div class="header-info">
+                    <span id="accountInfo" class="account-info"></span>
+                </div>
+            </div>
+        </header>
+
+        <div id="apiKeySection" class="api-key-section">
+            <div class="api-key-card">
+                <h3>🔑 API Key 配置</h3>
+                <p class="subtitle">请输入API密钥以访问控制面板</p>
+                <div class="api-key-input-group">
+                    <input type="password" id="apiKeyInput" placeholder="输入您的API密钥" />
+                    <button id="saveApiKeyBtn" class="btn btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <main id="mainContent" class="main-content" style="display: none;">
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <h3>导航</h3>
+                    <ul class="nav-list">
+                        <li>
+                            <a href="#" class="nav-item active" data-tab="browse">
+                                📁 浏览文件
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="nav-item" data-tab="queue">
+                                📋 任务队列
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="nav-item" data-tab="settings">
+                                ⚙️ 设置
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="account-section">
+                    <h3>账户</h3>
+                    <div id="accountSelector">
+                        <select id="accountSelect" class="account-select">
+                            <option value="">选择账户...</option>
+                        </select>
+                    </div>
+                </div>
+            </nav>
+
+            <section class="content-area">
+                <section id="browseView" class="tab-view active">
+                    <div class="view-header">
+                        <h2>浏览文件</h2>
+                        <div class="view-actions">
+                            <button id="refreshFilesBtn" class="btn btn-secondary btn-sm">
+                                <span class="icon">🔄</span> 刷新
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="browse-controls">
+                        <div class="breadcrumbs">
+                            <div id="breadcrumbsContainer" class="breadcrumbs-container"></div>
+                        </div>
+                        <div class="search-bar">
+                            <input type="text" id="searchInput" placeholder="搜索文件..." />
+                            <button id="searchBtn" class="btn btn-primary btn-sm">搜索</button>
+                            <button id="clearSearchBtn" class="btn btn-secondary btn-sm" style="display: none;">清除</button>
+                        </div>
+                    </div>
+
+                    <div id="loadingState" class="state-message loading">
+                        <div class="spinner"></div>
+                        <p>加载中...</p>
+                    </div>
+
+                    <div id="errorState" class="state-message error" style="display: none;">
+                        <p class="error-icon">⚠️</p>
+                        <p id="errorMessage">加载失败</p>
+                        <button id="retryBtn" class="btn btn-secondary">重试</button>
+                    </div>
+
+                    <div id="emptyState" class="state-message empty" style="display: none;">
+                        <p class="empty-icon">📭</p>
+                        <p id="emptyMessage">暂无文件</p>
+                    </div>
+
+                    <div id="filesContainer" class="files-container" style="display: none;">
+                        <div id="filesList" class="files-list"></div>
+                    </div>
+
+                    <div id="fileDetailsDrawer" class="file-details-drawer" style="display: none;">
+                        <div class="drawer-header">
+                            <h3>文件详情</h3>
+                            <button id="closeDrawerBtn" class="btn-close">&times;</button>
+                        </div>
+                        <div id="fileDetailsContent" class="drawer-content"></div>
+                        <div class="drawer-actions">
+                            <button id="copyPathBtn" class="btn btn-secondary btn-sm">复制路径</button>
+                            <button id="queueShareBtn" class="btn btn-primary btn-sm">加入分享队列</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="queueView" class="tab-view" style="display: none;">
+                    <div class="view-header">
+                        <h2>任务队列</h2>
+                    </div>
+                    <div class="placeholder-content">
+                        <p class="empty-icon">🚧</p>
+                        <p>任务队列功能即将推出</p>
+                    </div>
+                </section>
+
+                <section id="settingsView" class="tab-view" style="display: none;">
+                    <div class="view-header">
+                        <h2>设置</h2>
+                    </div>
+                    <div class="placeholder-content">
+                        <p class="empty-icon">🚧</p>
+                        <p>设置功能即将推出</p>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    <script src="js/main.js"></script>
+    <script src="js/browse.js"></script>
+</body>
+</html>
