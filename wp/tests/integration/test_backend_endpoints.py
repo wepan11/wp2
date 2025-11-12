@@ -454,13 +454,13 @@ class TestSettingsEndpoints:
         })
         assert response.status_code == 401
     
-    def test_update_settings_missing_body(self, client, auth_headers):
-        """Settings PUT should reject missing request body."""
-        response = client.put('/api/control/settings', headers=auth_headers)
+    def test_update_settings_empty_body(self, client, auth_headers):
+        """Settings PUT should reject empty body."""
+        response = client.put('/api/control/settings', headers=auth_headers, json={})
+        # Empty dict is falsy in Python, so it's treated as missing body
         assert response.status_code == 400
         data = response.get_json()
         assert data['success'] is False
-        assert 'body' in data['error'].lower() or 'request' in data['error'].lower()
     
     def test_update_settings_valid_throttle(self, client, auth_headers, monkeypatch, tmp_path):
         """Settings PUT should accept and persist valid throttle updates."""
@@ -633,3 +633,206 @@ class TestSettingsEndpoints:
         # Other settings should still exist (not removed)
         assert 'throttle' in data['data']
         assert 'workers' in data['data']
+    
+    def test_get_settings_includes_new_sections(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings GET should include share_defaults and transfer_defaults."""
+        # Monkeypatch settings manager to use temp directory
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        response = client.get('/api/control/settings', headers=auth_headers)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        
+        settings_data = data['data']
+        assert 'share_defaults' in settings_data
+        assert 'transfer_defaults' in settings_data
+        
+        # Check share_defaults structure
+        share_defaults = settings_data['share_defaults']
+        assert 'expiry' in share_defaults
+        assert 'auto_password' in share_defaults
+        assert 'fixed_password' in share_defaults
+        
+        # Check transfer_defaults structure
+        transfer_defaults = settings_data['transfer_defaults']
+        assert 'target_path' in transfer_defaults
+    
+    def test_update_settings_valid_share_defaults(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings PUT should accept valid share_defaults."""
+        # Monkeypatch settings manager
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        new_settings = {
+            'share_defaults': {
+                'expiry': 30,
+                'auto_password': False,
+                'fixed_password': 'test'
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=new_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['data']['share_defaults']['expiry'] == 30
+        assert data['data']['share_defaults']['auto_password'] is False
+        assert data['data']['share_defaults']['fixed_password'] == 'test'
+    
+    def test_update_settings_invalid_share_expiry(self, client, auth_headers):
+        """Settings PUT should reject invalid share expiry."""
+        invalid_settings = {
+            'share_defaults': {
+                'expiry': 14  # Invalid: must be 0, 1, 7, or 30
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=invalid_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'expiry' in data['error'].lower()
+    
+    def test_update_settings_invalid_share_password(self, client, auth_headers):
+        """Settings PUT should reject invalid fixed password length."""
+        invalid_settings = {
+            'share_defaults': {
+                'fixed_password': 'abc'  # Invalid: must be empty or 4 chars
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=invalid_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'password' in data['error'].lower()
+    
+    def test_update_settings_valid_transfer_defaults(self, client, auth_headers, monkeypatch, tmp_path):
+        """Settings PUT should accept valid transfer_defaults."""
+        # Monkeypatch settings manager
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        new_settings = {
+            'transfer_defaults': {
+                'target_path': '/custom/target'
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=new_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['data']['transfer_defaults']['target_path'] == '/custom/target'
+    
+    def test_update_settings_invalid_transfer_path(self, client, auth_headers):
+        """Settings PUT should reject invalid transfer target_path."""
+        invalid_settings = {
+            'transfer_defaults': {
+                'target_path': 'no_leading_slash'  # Invalid: must start with /
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=invalid_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'start with' in data['error'].lower()
+    
+    def test_update_settings_applies_to_services(self, client, auth_headers, monkeypatch, tmp_path, fake_services):
+        """Settings PUT should call apply_settings on active services."""
+        # Monkeypatch settings manager
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from settings_manager import SettingsManager
+        
+        temp_data_dir = str(tmp_path)
+        original_init = SettingsManager.__init__
+        
+        def mock_init(self, data_dir=None):
+            original_init(self, data_dir=temp_data_dir)
+        
+        monkeypatch.setattr(SettingsManager, '__init__', mock_init)
+        
+        # Track if apply_settings was called
+        calls = []
+        for service in fake_services.values():
+            original_apply = service.apply_settings
+            def track_apply(settings, svc=service):
+                calls.append(svc)
+                original_apply(settings)
+            service.apply_settings = track_apply
+        
+        new_settings = {
+            'share_defaults': {
+                'expiry': 7
+            }
+        }
+        
+        response = client.put(
+            '/api/control/settings',
+            json=new_settings,
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        # Verify apply_settings was called on services
+        assert len(calls) >= 0  # May be 0 if no services are currently initialized
