@@ -59,10 +59,11 @@
 ### 服务地址
 
 ```
-基础URL:    http://localhost:5000
-健康检查:   http://localhost:5000/api/health
-知识库UI:   http://localhost:5000/kb
-API文档:    http://localhost:5000/docs
+基础URL:       http://localhost:5000
+健康检查:      http://localhost:5000/api/health
+知识库UI:      http://localhost:5000/kb
+控制面板:      http://localhost:5000/control
+API文档:       http://localhost:5000/docs
 ```
 
 ### 认证信息
@@ -159,12 +160,15 @@ wp/knowledge_repository.py           # 知识库数据层
 wp/crawler_service.py                # 爬虫服务
 wp/link_extractor_service.py         # 链接提取
 wp/link_processor_service.py         # 链接处理
+wp/settings_manager.py               # 设置管理器
+wp/control_panel_helpers.py          # 控制面板辅助函数
 ```
 
 ### 数据和日志
 
 ```
 wp/data/baidu_pan_deployment.db      # SQLite数据库
+wp/data/control_panel_settings.json  # 控制面板设置
 wp/logs/app.log                      # 应用日志
 wp/server.log                        # 服务运行日志
 wp/server.pid                        # 服务进程ID
@@ -179,6 +183,9 @@ wp/README_KNOWLEDGE_API.md           # 知识库API文档
 wp/README_KNOWLEDGE_REPO.md          # 存储层文档
 wp/README_CRAWLER.md                 # 爬虫功能文档
 wp/README_LINK_EXTRACTOR.md          # 链接提取文档
+wp/CONTROL_PANEL_README.md           # 控制面板完整文档
+wp/CONTROL_PANEL_QUICKSTART.md       # 控制面板快速入门
+wp/TESTING_SUMMARY.md                # 测试策略和命令
 ```
 
 ## 测试数据
@@ -233,6 +240,19 @@ wp/README_LINK_EXTRACTOR.md          # 链接提取文档
 2. **强密码API密钥**
    ```env
    API_SECRET_KEY=<生成的强密码>
+   ```
+   生成强密码示例：
+   ```python
+   import secrets
+   print(secrets.token_urlsafe(32))
+   ```
+
+3. **控制面板设置持久化**
+   确保 `data/` 目录可写，用于保存控制面板设置：
+   ```bash
+   mkdir -p wp/data
+   chmod 755 wp/data
+   # 设置文件将自动创建为 data/control_panel_settings.json
    ```
 
 ### 推荐配置

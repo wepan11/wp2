@@ -218,38 +218,266 @@ OK
 - 完整的文档字符串
 - 清晰的测试命名
 
+## 新增测试架构 (Pytest)
+
+### 测试框架迁移
+
+项目已从unittest迁移到pytest，提供更现代化的测试体验。
+
+### 单元测试 (`tests/unit/`)
+
+**运行所有单元测试：**
+```bash
+cd wp
+./run_unit_tests.sh
+# 或直接使用pytest
+pytest tests/unit/ -v
+```
+
+**测试模块 (76个测试，~0.16秒)：**
+
+1. **test_settings_manager.py** - 设置管理器测试
+   - 设置加载和保存
+   - 默认值生成
+   - 更新和验证逻辑
+   - JSON持久化
+
+2. **test_core_service_throttle.py** - 核心服务节流测试
+   - 节流配置更新
+   - Throttler重建
+   - Worker引用更新
+   - 错误处理
+
+3. **test_control_panel_helpers.py** - 控制面板辅助函数测试
+   - 队列汇总聚合
+   - 健康状态构建
+   - 账户列表构建
+   - 数据过滤和计数
+
+**运行特定测试：**
+```bash
+# 只测试设置管理器
+pytest tests/unit/test_settings_manager.py -v
+
+# 只测试控制面板辅助函数
+pytest tests/unit/test_control_panel_helpers.py -v
+
+# 带覆盖率报告
+pytest tests/unit/ --cov=. --cov-report=html
+```
+
+### 集成测试 (`tests/integration/`)
+
+**运行集成测试：**
+```bash
+cd wp
+pytest tests/integration/ -v
+```
+
+**测试模块 (38个测试，~2.2秒)：**
+
+1. **test_backend_endpoints.py** - 后端API端点测试
+   - 控制面板所有API端点
+   - 设置加载和保存
+   - 队列操作（启动、暂停、停止、清除）
+   - 身份验证和错误处理
+   - 使用FakeCoreService避免真实Baidu API调用
+
+**Fixtures (tests/integration/conftest.py):**
+- `app` - Flask应用实例
+- `client` - Flask测试客户端
+- `fake_services` - 模拟CoreService实例
+- `auth_headers` - 认证头部
+
+**运行特定测试：**
+```bash
+# 只测试设置端点
+pytest tests/integration/test_backend_endpoints.py::TestSettingsEndpoints -v
+
+# 带详细输出
+pytest tests/integration/ -vv
+```
+
+### 知识库测试 (Legacy Unittest)
+
+**运行知识库测试：**
+```bash
+cd wp
+python -m unittest tests.test_knowledge_module -v
+```
+
+**测试统计 (32个测试)：**
+- TestKnowledgeRepository: 17个测试
+- TestKnowledgeAPI: 15个测试
+
+### 完整测试套件
+
+**运行所有测试：**
+```bash
+cd wp
+
+# Pytest测试 (单元 + 集成)
+pytest tests/ -v
+
+# 加上unittest知识库测试
+python -m unittest tests.test_knowledge_module -v
+
+# 或使用pytest运行所有测试（包括unittest）
+pytest tests/ --verbose --tb=short
+```
+
+**测试统计总览：**
+```
+单元测试:        76个  (~0.16秒)
+集成测试:        38个  (~2.2秒)
+知识库测试:      32个  (~2.4秒)
+────────────────────────────────
+总计:           146个  (~4.8秒)
+```
+
+### 测试隔离机制
+
+**单元测试：**
+- 使用`tmp_path` fixtures创建临时目录
+- 独立的测试数据，不依赖生产环境
+- Monkeypatch替换真实依赖
+- 自动清理临时文件
+
+**集成测试：**
+- FakeCoreService模拟真实服务
+- 不触发实际Baidu API调用
+- 隔离的Flask应用实例
+- 每个测试独立的上下文
+
+**知识库测试：**
+- 临时SQLite数据库
+- 每个测试前重置fixtures
+- 不影响生产数据
+
+### CI/CD集成
+
+**GitHub Actions示例：**
+```yaml
+# .github/workflows/test.yml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          cd wp
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run unit tests
+        run: |
+          cd wp
+          pytest tests/unit/ -v
+      - name: Run integration tests
+        run: |
+          cd wp
+          pytest tests/integration/ -v
+      - name: Run knowledge tests
+        run: |
+          cd wp
+          python -m unittest tests.test_knowledge_module -v
+```
+
+### 覆盖率报告
+
+**生成覆盖率报告：**
+```bash
+cd wp
+
+# HTML报告
+pytest tests/ --cov=. --cov-report=html
+open htmlcov/index.html
+
+# 终端报告
+pytest tests/ --cov=. --cov-report=term-missing
+
+# XML报告（用于CI）
+pytest tests/ --cov=. --cov-report=xml
+```
+
+### 调试失败的测试
+
+**详细输出：**
+```bash
+# 显示print语句
+pytest tests/ -v -s
+
+# 显示完整traceback
+pytest tests/ -v --tb=long
+
+# 失败时进入调试器
+pytest tests/ --pdb
+
+# 只运行失败的测试
+pytest tests/ --lf
+```
+
+### 最佳实践
+
+1. **运行测试前：**
+   - 确保虚拟环境已激活
+   - 确认所有依赖已安装
+   - 清理临时文件和缓存
+
+2. **编写新测试：**
+   - 单元测试放在`tests/unit/`
+   - 集成测试放在`tests/integration/`
+   - 使用有意义的测试名称
+   - 添加docstring说明测试目的
+
+3. **测试隔离：**
+   - 不依赖测试执行顺序
+   - 使用fixtures提供测试数据
+   - 清理测试产生的副作用
+   - Mock外部依赖
+
+4. **持续改进：**
+   - 定期检查覆盖率
+   - 为bug修复添加回归测试
+   - 重构测试代码消除重复
+   - 保持测试快速可靠
+
 ## 后续建议
 
-1. **集成CI/CD**
-   ```yaml
-   # .github/workflows/test.yml 示例
-   - name: Run tests
-     run: |
-       cd wp
-       python -m unittest discover tests -v
-   ```
+1. **提高覆盖率**
+   - 为核心业务逻辑添加更多单元测试
+   - 覆盖边缘情况和错误路径
+   - 目标：80%+ 代码覆盖率
 
-2. **覆盖率报告**
-   ```bash
-   pip install coverage
-   coverage run -m unittest discover tests
-   coverage report -m
-   ```
-
-3. **性能测试**
+2. **性能测试**
    - 为大数据量场景添加性能测试
    - 验证分页和查询效率
+   - 监控慢查询和瓶颈
 
-4. **集成测试**
-   - 添加完整工作流程的端到端测试
+3. **端到端测试**
+   - 添加完整工作流程的E2E测试
    - 测试爬虫→提取→转存→分享的完整流程
+   - 使用Selenium/Playwright测试UI
+
+4. **测试数据管理**
+   - 建立标准测试数据集
+   - 使用工厂模式生成测试数据
+   - 考虑使用faker生成随机数据
 
 ## 总结
 
-成功实现了知识库模块的完整自动化测试套件，提供：
-- 32个单元测试，100%通过
-- 完全隔离的测试环境
-- 详尽的中文文档
-- 易于维护和扩展的测试架构
+项目现在拥有全面的测试体系：
+- **146个自动化测试**，覆盖知识库、控制面板、核心服务
+- **Pytest + unittest** 双框架支持
+- **完全隔离**的测试环境，不影响生产数据
+- **快速执行**，总计不到5秒
+- **CI/CD就绪**，易于集成到自动化流程
 
-测试套件确保了知识库模块的长期稳定性，为新功能开发和重构提供了可靠的安全网。
+测试套件确保了项目的长期稳定性，为新功能开发和重构提供了可靠的安全网。
